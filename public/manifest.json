@@ -1,0 +1,10 @@
+{
+  "name": "Dispensa Smart",
+  "short_name": "Dispensa",
+  "description": "Tieni traccia della scadenza dei tuoi alimenti",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "icons": []
+}
