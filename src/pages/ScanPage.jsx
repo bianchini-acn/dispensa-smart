@@ -3,16 +3,21 @@ import Quagga from '@ericblade/quagga2'
 import { fetchProductByBarcode } from '../lib/openfoodfacts'
 
 export default function ScanPage({ onScanned, onCancel }) {
-  const [status, setStatus] = useState('scanning') // scanning | loading | error
+  const [status, setStatus] = useState('scanning') // scanning | loading | error | manual
   const [errorMsg, setErrorMsg] = useState('')
   const [detectState, setDetectState] = useState('idle') // idle | detecting | confirmed
-  const [attempts, setAttempts] = useState(0) // tentativi falliti
-  const [showManual, setShowManual] = useState(false)
+  const [attempts, setAttempts] = useState(0)
+  const [showManualBarcode, setShowManualBarcode] = useState(false)
+  const [manualCode, setManualCode] = useState('')
+  const [searchError, setSearchError] = useState('')
+  const [searching, setSearching] = useState(false)
   const doneRef = useRef(false)
   const resultsBuffer = useRef([])
   const attemptTimerRef = useRef(null)
 
   useEffect(() => {
+    if (status !== 'scanning') return
+
     Quagga.init({
       inputStream: {
         name: 'Live',
@@ -32,7 +37,6 @@ export default function ScanPage({ onScanned, onCancel }) {
       Quagga.start()
     })
 
-    // Feedback visivo: barcode rilevato ma non ancora confermato
     Quagga.onProcessed(result => {
       if (doneRef.current) return
       if (result?.boxes?.length > 0 || result?.box) {
@@ -55,11 +59,10 @@ export default function ScanPage({ onScanned, onCancel }) {
       const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
 
       if (best[1] < 2) {
-        // Lettura inconsistente — conta come tentativo fallito
         resultsBuffer.current = resultsBuffer.current.slice(-2)
         setAttempts(prev => {
           const next = prev + 1
-          if (next >= 3) setShowManual(true)
+          if (next >= 3) setShowManualBarcode(true)
           return next
         })
         return
@@ -83,11 +86,28 @@ export default function ScanPage({ onScanned, onCancel }) {
       clearTimeout(attemptTimerRef.current)
       try { Quagga.stop() } catch (_) {}
     }
-  }, [])
+  }, [status])
 
-  function handleManual() {
-    try { Quagga.stop() } catch (_) {}
-    onScanned({ barcode: null, name: '', brand: '', image_url: null, ingredients: '', nutrients: {} })
+  async function handleManualBarcodeSearch(e) {
+    e.preventDefault()
+    if (!manualCode.trim()) return
+    setSearching(true)
+    setSearchError('')
+    try {
+      const product = await fetchProductByBarcode(manualCode.trim())
+      if (product) {
+        onScanned(product)
+      } else {
+        setSearchError('Prodotto non trovato. Puoi inserirlo manualmente.')
+      }
+    } catch {
+      setSearchError('Errore di rete. Riprova.')
+    }
+    setSearching(false)
+  }
+
+  function handleFullManual() {
+    onScanned({ barcode: manualCode || null, name: '', brand: '', image_url: null, ingredients: '', nutrients: {} })
   }
 
   const borderColor =
@@ -110,7 +130,6 @@ export default function ScanPage({ onScanned, onCancel }) {
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <div id="quagga-video" style={{ width: '100%', height: '100%' }} />
 
-        {/* mirino con feedback colore */}
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
           <div style={{
             width: 260, height: 120,
@@ -136,33 +155,47 @@ export default function ScanPage({ onScanned, onCancel }) {
       </div>
 
       <div style={{ padding: '16px 20px', background: '#111', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* hint stato */}
         <p style={{
           textAlign: 'center', fontSize: 13,
           color: detectState === 'confirmed' ? '#4ade80' : detectState === 'detecting' ? '#facc15' : '#888',
           transition: 'color 0.2s'
-        }}>
-          {hint}
-        </p>
+        }}>{hint}</p>
 
-        {/* bottone manuale: sempre visibile ma più prominente dopo 3 tentativi */}
-        {showManual ? (
-          <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Dopo 3 tentativi: inserimento manuale del codice */}
+        {showManualBarcode && (
+          <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p style={{ color: '#facc15', fontSize: 13, textAlign: 'center' }}>
-              ⚠️ Il codice non viene letto. Vuoi inserire il prodotto manualmente?
+              ⚠️ Codice non letto. Inseriscilo a mano:
             </p>
-            <button onClick={handleManual} style={{ background: 'var(--green)', color: '#fff', fontSize: 14 }}>
-              ✏️ Inserisci manualmente
-            </button>
-            <button onClick={() => { setAttempts(0); setShowManual(false); resultsBuffer.current = [] }}
-              style={{ background: 'transparent', color: '#aaa', fontSize: 13, padding: '6px 0' }}>
-              Riprova scansione
+            <form onSubmit={handleManualBarcodeSearch} style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="number"
+                value={manualCode}
+                onChange={e => { setManualCode(e.target.value); setSearchError('') }}
+                placeholder="es. 8001120757753"
+                style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '10px 12px', fontSize: 14 }}
+                inputMode="numeric"
+                autoFocus
+              />
+              <button type="submit" disabled={searching || !manualCode.trim()}
+                style={{ background: 'var(--green)', color: '#fff', padding: '10px 16px', fontSize: 14, flexShrink: 0 }}>
+                {searching ? '...' : '🔍'}
+              </button>
+            </form>
+            {searchError && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <p style={{ color: '#f87171', fontSize: 13 }}>{searchError}</p>
+                <button onClick={handleFullManual}
+                  style={{ background: 'var(--green)', color: '#fff', fontSize: 13 }}>
+                  ✏️ Inserisci prodotto manualmente
+                </button>
+              </div>
+            )}
+            <button onClick={() => { setShowManualBarcode(false); setAttempts(0); resultsBuffer.current = []; doneRef.current = false }}
+              style={{ background: 'transparent', color: '#888', fontSize: 12, padding: '4px 0' }}>
+              Riprova con la fotocamera
             </button>
           </div>
-        ) : (
-          <button onClick={handleManual} style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 13, padding: '10px 24px', width: '100%' }}>
-            ✏️ Inserisci manualmente
-          </button>
         )}
       </div>
     </div>
