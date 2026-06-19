@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@ericblade/quagga2": "^1.12.1",
     "@supabase/supabase-js": "^2.108.1",
     "@zxing/browser": "^0.2.0",
     "@zxing/library": "^0.22.0",
