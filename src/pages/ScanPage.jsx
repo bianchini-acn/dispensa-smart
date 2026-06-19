@@ -6,12 +6,10 @@ export default function ScanPage({ onScanned, onCancel }) {
   const [status, setStatus] = useState('scanning') // scanning | loading | error
   const [errorMsg, setErrorMsg] = useState('')
   const videoRef = useRef(null)
-  const readerRef = useRef(null)
   const doneRef = useRef(false)
 
   useEffect(() => {
     const reader = new BrowserMultiFormatReader()
-    readerRef.current = reader
 
     reader.decodeFromConstraints(
       { video: { facingMode: 'environment' } },
@@ -20,7 +18,6 @@ export default function ScanPage({ onScanned, onCancel }) {
         if (!result || doneRef.current) return
         doneRef.current = true
         setStatus('loading')
-
         const barcode = result.getText()
         try {
           const product = await fetchProductByBarcode(barcode)
@@ -34,10 +31,13 @@ export default function ScanPage({ onScanned, onCancel }) {
       setErrorMsg(err?.message || 'Impossibile accedere alla fotocamera')
     })
 
-    return () => {
-      BrowserMultiFormatReader.releaseAllStreams()
-    }
+    return () => { BrowserMultiFormatReader.releaseAllStreams() }
   }, [])
+
+  function handleManual() {
+    BrowserMultiFormatReader.releaseAllStreams()
+    onScanned({ barcode: null, name: '', brand: '', image_url: null, ingredients: '', nutrients: {} })
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: '#000' }}>
@@ -47,15 +47,8 @@ export default function ScanPage({ onScanned, onCancel }) {
       </div>
 
       <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        <video
-          ref={videoRef}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          autoPlay
-          muted
-          playsInline
-        />
+        <video ref={videoRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} autoPlay muted playsInline />
 
-        {/* mirino */}
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
           <div style={{ width: 260, height: 120, border: '2px solid rgba(255,255,255,0.8)', borderRadius: 8, boxShadow: '0 0 0 1000px rgba(0,0,0,0.4)' }} />
         </div>
@@ -74,8 +67,11 @@ export default function ScanPage({ onScanned, onCancel }) {
         )}
       </div>
 
-      <div style={{ padding: '16px 20px', background: '#111', textAlign: 'center', color: '#888', fontSize: 13 }}>
-        Inquadra il codice a barre del prodotto
+      <div style={{ padding: '16px 20px', background: '#111', display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+        <p style={{ color: '#888', fontSize: 13 }}>Inquadra il codice a barre del prodotto</p>
+        <button onClick={handleManual} style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 13, padding: '10px 24px', width: '100%' }}>
+          ✏️ Inserisci manualmente
+        </button>
       </div>
     </div>
   )
