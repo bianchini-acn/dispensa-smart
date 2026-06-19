@@ -1,5 +1,7 @@
 export async function fetchProductByBarcode(barcode) {
-  const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
+  const clean = String(barcode).trim()
+  console.log('[OFF] barcode ricevuto:', JSON.stringify(clean), 'lunghezza:', clean.length)
+  const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${clean}.json`)
   const data = await res.json()
   if (data.status !== 1) return null
   const p = data.product

@@ -169,9 +169,9 @@ export default function ScanPage({ onScanned, onCancel }) {
             </p>
             <form onSubmit={handleManualBarcodeSearch} style={{ display: 'flex', gap: 8 }}>
               <input
-                type="number"
+                type="text"
                 value={manualCode}
-                onChange={e => { setManualCode(e.target.value); setSearchError('') }}
+                onChange={e => { setManualCode(e.target.value.replace(/\D/g, '')); setSearchError('') }}
                 placeholder="es. 8001120757753"
                 style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '10px 12px', fontSize: 14 }}
                 inputMode="numeric"
